@@ -59,9 +59,24 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 	}
 }
 
-func getKeyID(bytes []byte) []byte {
+func getKeyID(priv interface{}) []byte {
 	h := sha1.New()
-	h.Write(bytes)
+	switch k := priv.(type) {
+	case *rsa.PrivateKey:
+		bytes, err := x509.MarshalPKIXPublicKey(k.Public())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to marshal RSA public key: %v", err)
+			os.Exit(2)
+		}
+		h.Write(bytes)
+	case *ecdsa.PrivateKey:
+		bytes, err := x509.MarshalPKIXPublicKey(k.Public())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to marshal ECDSA public key: %v", err)
+			os.Exit(2)
+		}
+		h.Write(bytes)
+	}
 	return h.Sum(nil)
 }
 
@@ -88,13 +103,13 @@ func createRandomCertificate(parent *x509.Certificate, serialNumber int64) (cert
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
-		SubjectKeyId:          getKeyID(pemBlockForKey(priv).Bytes),
+		SubjectKeyId:          getKeyID(priv),
 	}
 
 	if parent == nil {
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
-		template.AuthorityKeyId = getKeyID(pemBlockForKey(priv).Bytes)
+		template.AuthorityKeyId = getKeyID(priv)
 		parent = &template
 	} else {
 		template.AuthorityKeyId = parent.SubjectKeyId
