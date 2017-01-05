@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -162,11 +163,12 @@ func createOneRandomCertificate(caCert *x509.Certificate, serial int64) <-chan s
 }
 
 func sendCertificate(cert *x509.Certificate) {
-	fmt.Printf("CN: %s\n", cert.Subject.CommonName)
-	fmt.Printf("C: %s\n", cert.Subject.Country[0])
-	fmt.Printf("O: %s\n", cert.Subject.Organization[0])
-	fmt.Printf("Authority Key ID: % x\n", cert.AuthorityKeyId)
-	fmt.Printf("Subject Key ID: % x\n", cert.SubjectKeyId)
+	b, err := json.MarshalIndent(cert, "", "    ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to Marshal certificate to json: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Certificate: " + string(b))
 }
 
 func createNRandomCertificates(caCert *x509.Certificate, startSerial int64, n int64) <-chan string {
