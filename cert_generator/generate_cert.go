@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -58,6 +59,12 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 	}
 }
 
+func getKeyID(bytes []byte) []byte {
+	h := sha1.New()
+	h.Write(bytes)
+	return h.Sum(nil)
+}
+
 func createRandomCertificate(parent *x509.Certificate, serialNumber int64) (cert []byte, err2 error) {
 
 	var priv interface{}
@@ -81,12 +88,16 @@ func createRandomCertificate(parent *x509.Certificate, serialNumber int64) (cert
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
+		SubjectKeyId:          getKeyID(pemBlockForKey(priv).Bytes),
 	}
 
 	if parent == nil {
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
+		template.AuthorityKeyId = getKeyID(pemBlockForKey(priv).Bytes)
 		parent = &template
+	} else {
+		template.AuthorityKeyId = parent.SubjectKeyId
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, parent, publicKey(priv), priv)
@@ -101,7 +112,6 @@ func createRandomCertificate(parent *x509.Certificate, serialNumber int64) (cert
 	}
 	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	certOut.Close()
-	//log.Print(fmt.Sprintf("written %s\n", fileName))
 
 	keyFilename := strconv.FormatInt(serialNumber, 10) + "_key.pem"
 	keyOut, err := os.OpenFile("keys/"+keyFilename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
@@ -120,10 +130,28 @@ func createRandomCertificate(parent *x509.Certificate, serialNumber int64) (cert
 func createOneRandomCertificate(caCert *x509.Certificate, serial int64) <-chan string {
 	c := make(chan string)
 	go func() {
-		createRandomCertificate(caCert, serial)
+		certBytes, err := createRandomCertificate(caCert, serial)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create certificate: %s\n", err)
+			os.Exit(1)
+		}
+		cert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse certificate: %s\n", err)
+			os.Exit(1)
+		}
+		sendCertificate(cert)
 		c <- fmt.Sprintf("Created certificate: %d", serial)
 	}()
 	return c
+}
+
+func sendCertificate(cert *x509.Certificate) {
+	fmt.Printf("CN: %s\n", cert.Subject.CommonName)
+	fmt.Printf("C: %s\n", cert.Subject.Country[0])
+	fmt.Printf("O: %s\n", cert.Subject.Organization[0])
+	fmt.Printf("Authority Key ID: % x\n", cert.AuthorityKeyId)
+	fmt.Printf("Subject Key ID: % x\n", cert.SubjectKeyId)
 }
 
 func createNRandomCertificates(caCert *x509.Certificate, startSerial int64, n int64) <-chan string {
@@ -155,6 +183,9 @@ func fanIn(input1, input2 <-chan string) <-chan string {
 
 func main() {
 	flag.Parse()
+
+	os.Mkdir("certs", 0755)
+	os.Mkdir("keys", 0755)
 
 	var err error
 	if len(*validFrom) == 0 {
@@ -195,7 +226,7 @@ func main() {
 		c6 := createOneRandomCertificate(caCert, serialNumber)
 		serialNumber +=1
 	*/
-	timeOut := time.After(20 * time.Second)
+	timeOut := time.After(2 * time.Second)
 
 	for {
 		select {
