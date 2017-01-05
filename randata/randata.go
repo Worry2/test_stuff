@@ -18,10 +18,6 @@ func Initialize() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func stringToArray(str string) []string {
-	return strings.Split(str, "\n")
-}
-
 // GetRandomWord returns a random english noun
 func GetRandomWord() string {
 	return words[rand.Intn(len(words))]
@@ -44,4 +40,8 @@ func RandStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func stringToArray(str string) []string {
+	return strings.Split(str, "\n")
 }
