@@ -1,3 +1,6 @@
+// Compare the speeds for allocating data to heap and stack and to copying by value
+// run with: go test -gcflags '-l' -bench=. -benchmem
+
 package main
 
 type data struct {
@@ -22,7 +25,25 @@ func NewDataByValue() data {
 }
 
 func main() {
+	caseA()
+	caseB()
+	caseC()
+}
 
+func caseA() {
+	var d data
+	NewDataPointerFromStack(&d)
+	usePointerData(&d)
+}
+
+func caseB() {
+	d := NewDataPointerFromHeap()
+	usePointerData(d)
+}
+
+func caseC() {
+	d := NewDataByValue()
+	usePointerData(&d)
 }
 
 func useData(d data) {

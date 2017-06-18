@@ -6,22 +6,18 @@ import (
 
 func BenchmarkPointerStack(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		var d data
-		NewDataPointerFromStack(&d)
-		usePointerData(&d)
+		caseA()
 	}
 }
 
 func BenchmarkPointerHeap(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		d := NewDataPointerFromHeap()
-		usePointerData(d)
+		caseB()
 	}
 }
 
 func BenchmarkValue(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		d := NewDataByValue()
-		usePointerData(&d)
+		caseC()
 	}
 }
