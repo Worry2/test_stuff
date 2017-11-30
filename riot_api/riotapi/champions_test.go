@@ -36,11 +36,7 @@ func TestFromChampionsDTO(t *testing.T) {
 func TestGetChampions(t *testing.T) {
 	t.Skip("This API should not be called too often")
 
-	c, err := New(aPIKey, "eune")
-	if err != nil {
-		t.Fatalf("unable to create client: %v", err)
-	}
-	api := LoLStaticDataAPI{c}
+	api := LoLStaticDataAPI{newClient(t)}
 	champs, err := api.Champions()
 	if err != nil {
 		t.Fatalf("unable to get champions: %v", err)

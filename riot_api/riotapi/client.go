@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -30,6 +31,16 @@ type Client struct {
 	c      *http.Client
 	host   string
 	apiKey string
+}
+
+// APIError wraps http error messages
+type APIError struct {
+	StatusCode int
+	Msg        string
+}
+
+func (err APIError) Error() string {
+	return fmt.Sprintf("status: %d, msg: %s", err.StatusCode, err.Msg)
 }
 
 // New creates a new riot API client
@@ -76,5 +87,9 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 }
 
 func handleErrorStatus(resp *http.Response) error {
-	return fmt.Errorf("status: %s, code: %d", resp.Status, resp.StatusCode)
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return errors.New("unable to read response body")
+	}
+	return APIError{StatusCode: resp.StatusCode, Msg: string(b)}
 }

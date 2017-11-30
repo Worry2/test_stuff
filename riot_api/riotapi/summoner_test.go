@@ -5,14 +5,10 @@ import (
 )
 
 func TestSummonerByName(t *testing.T) {
-	c, err := New(aPIKey, "eune")
-	if err != nil {
-		t.Fatalf("unable to create client: %v", err)
-	}
-	api := SummonerAPI{c}
+	api := SummonerAPI{newClient(t)}
 	uxi, err := api.SummonerByName("uxipaxa")
 	if err != nil {
-		t.Fatalf("unable to get champions: %v", err)
+		t.Fatalf("unable to get summoner: %v", err)
 	}
 	if uxi.ID != 24749077 {
 		t.Fatalf("invalid summoner id: %d", uxi.AccountID)
