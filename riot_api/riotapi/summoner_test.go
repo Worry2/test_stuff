@@ -4,13 +4,44 @@ import (
 	"testing"
 )
 
-func TestSummonerByName(t *testing.T) {
-	api := SummonerAPI{newClient(t)}
-	uxi, err := api.SummonerByName("uxipaxa")
-	if err != nil {
-		t.Fatalf("unable to get summoner: %v", err)
+func TestSummonerAPI_SummonerByName(t *testing.T) {
+	type args struct {
+		name string
 	}
-	if uxi.ID != 24749077 {
-		t.Fatalf("invalid summoner id: %d", uxi.AccountID)
+	tests := []struct {
+		name    string
+		args    args
+		want    *SummonerDTO
+		wantErr bool
+	}{
+		{
+			name:    "Get summoner by name",
+			args:    args{name: "uxipaxa"},
+			want:    &SummonerDTO{Name: "Uxipaxa", ID: 24749077, AccountID: 29325268},
+			wantErr: false,
+		},
+		{
+			name:    "Get nonexistant summoner by name",
+			args:    args{name: "non_existing_name_512035kmsadfu815ij"},
+			want:    nil,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := SummonerAPI{newClient(t)}
+			got, err := api.SummonerByName(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SummonerAPI.SummonerByName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.want != nil && (got.ID != tt.want.ID || got.Name != tt.want.Name || got.AccountID != tt.want.AccountID) {
+				t.Errorf("SummonerAPI.SummonerByName() = %v, want %v", got, tt.want)
+			}
+
+			if tt.want == nil && got != nil {
+				t.Errorf("SummonerAPI.SummonerByName() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

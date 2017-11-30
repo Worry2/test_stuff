@@ -1,6 +1,9 @@
 package riotapi
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 // SummonerAPI implements the Riot Summoner API methods
 type SummonerAPI struct {
@@ -26,6 +29,11 @@ func (api SummonerAPI) SummonerByName(name string) (*SummonerDTO, error) {
 	}
 	var s SummonerDTO
 	if err := api.c.Request(summonerAPIPath, "summoners/by-name/"+name, &s); err != nil {
+		if apiErr, ok := err.(APIError); ok {
+			if apiErr.StatusCode == http.StatusNotFound {
+				return nil, nil
+			}
+		}
 		return nil, err
 	}
 	return &s, nil
