@@ -1,10 +1,7 @@
-package main
+package riotapi
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/RobWC/riotapi"
 )
 
 func TestParseChampions(t *testing.T) {
@@ -36,21 +33,20 @@ func TestFromChampionsDTO(t *testing.T) {
 	}
 }
 
-// https://eun1.api.riotgames.com/lol/static-data/v3/champions/
+func TestGetChampions(t *testing.T) {
+	t.Skip("This API should not be called too often")
 
-func TestRiotAPI(t *testing.T) {
-	apiKeyEnv := "RGAPI-fd5d6135-b0a1-4099-9d8e-4444af580022"
-
-	if apiKeyEnv == "" {
-		t.Fatal("API Key Not Specified")
-	}
-
-	c := riotapi.NewAPIClient("eun1", apiKeyEnv)
-	sl, err := c.StaticChampions("v3", riotapi.ChampDataAll)
+	c, err := New(aPIKey, "eune")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("unable to create client: %v", err)
 	}
-	fmt.Println(sl)
-	t.Log(sl)
+	api := LoLStaticDataAPI{c}
+	champs, err := api.Champions()
+	if err != nil {
+		t.Fatalf("unable to get champions: %v", err)
+	}
 
+	if len(champs.Data) < 100 {
+		t.Fatal("not enought champions")
+	}
 }

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	aPIKey            = "?api_key=RGAPI-fd5d6135-b0a1-4099-9d8e-4444af580022"
+	aPIKey            = "RGAPI-abcf80c0-6f71-4a65-acf5-2f03e087dd07"
 	summonerByNameURL = "https://eun1.api.riotgames.com/lol/summoner/v3/summoners/by-name/"
 	spectatorURL      = "https://eun1.api.riotgames.com/lol/spectator/v3/active-games/by-summoner/"
 	championURL       = "https://eun1.api.riotgames.com/lol/static-data/v3/champions/"
@@ -35,8 +35,8 @@ type Player struct {
 
 func main() {
 	//readPlayerIDs()
-	// monitorPlayers()
-	imageToDiscord("Teemo")
+	monitorPlayers()
+	// imageToDiscord("Teemo")
 }
 
 func monitorPlayers() {
