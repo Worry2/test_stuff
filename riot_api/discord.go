@@ -11,6 +11,11 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const (
+	discordHook = "https://discordapp.com/api/webhooks/384835834815447052/K6amIwt30YVjWBJFivZIR8UIBB8Qh-mUGcleVUQ0oTSTt5BJuR0eXRKZ1xJyqEmEzscF"
+	avatarURL   = "http://ddragon.leagueoflegends.com/cdn/img/champion/tiles/gangplank_0.jpg"
+)
+
 func sendToDiscord(s string) {
 	fmt.Println("Lähetys: ", s)
 	fmt.Println(s)

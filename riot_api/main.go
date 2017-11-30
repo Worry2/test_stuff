@@ -1,21 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"log"
 	"time"
+
+	"github.com/tahkapaa/test_stuff/riot_api/riotapi"
 )
 
 const (
-	aPIKey            = "RGAPI-abcf80c0-6f71-4a65-acf5-2f03e087dd07"
-	summonerByNameURL = "https://eun1.api.riotgames.com/lol/summoner/v3/summoners/by-name/"
-	spectatorURL      = "https://eun1.api.riotgames.com/lol/spectator/v3/active-games/by-summoner/"
-	championURL       = "https://eun1.api.riotgames.com/lol/static-data/v3/champions/"
-
-	discordHook = "https://discordapp.com/api/webhooks/384835834815447052/K6amIwt30YVjWBJFivZIR8UIBB8Qh-mUGcleVUQ0oTSTt5BJuR0eXRKZ1xJyqEmEzscF"
-
-	avatarURL = "http://ddragon.leagueoflegends.com/cdn/img/champion/tiles/gangplank_0.jpg"
+	apiKey = "RGAPI-abcf80c0-6f71-4a65-acf5-2f03e087dd07"
 )
 
 var players = []*Player{
@@ -30,31 +24,35 @@ type Player struct {
 	Name     string
 	ID       int
 	InGame   bool
-	Champion string
+	Champion riotapi.Champion
 }
 
 func main() {
-	//readPlayerIDs()
-	monitorPlayers()
-	// imageToDiscord("Teemo")
+	c, err := riotapi.New(apiKey, "eune")
+	if err != nil {
+		log.Fatal("unable to initialize riot api")
+	}
+
+	sendToDiscord("Iltaa kaikki, olen täällä taas!")
+	monitorPlayers(c)
 }
 
-func monitorPlayers() {
+func monitorPlayers(c *riotapi.Client) {
 	for {
 		for _, p := range players {
-			handleMonitorPlayer(p)
+			handleMonitorPlayer(c, p)
 		}
 		time.Sleep(time.Second * 60)
 	}
 }
 
-func handleMonitorPlayer(p *Player) {
-	r, err := getActiveGames(p.ID)
+func handleMonitorPlayer(c *riotapi.Client, p *Player) {
+	cgi, err := c.Spectator.ActiveGamesBySummoner(p.ID)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	if r["status"] != http.StatusOK {
+	if cgi == nil {
 		if p.InGame {
 			sendToDiscord(p.Name + " lopetti pelin")
 		}
@@ -66,75 +64,18 @@ func handleMonitorPlayer(p *Player) {
 		return
 	}
 
-	participants := r["participants"].([]interface{})
-	for _, participant := range participants {
-		pmap := participant.(map[string]interface{})
-		summID, err := pmap["summonerId"].(json.Number).Int64()
+	for _, playerInfo := range cgi.Participants {
+		champions, err := c.Static.Champions()
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		if int(summID) == p.ID {
-			champID, err := pmap["championId"].(json.Number).Int64()
-			if err != nil {
-				fmt.Println("unable to get champion data: ", err)
-				return
-			}
-			champ, err := getChampionData(int(champID))
-			if err != nil {
-				fmt.Println("unable to get champion data: ", err)
-				return
-			}
-			p.Champion = fmt.Sprintf("%v, %v\n", champ["name"], champ["title"])
-		}
+		p.Champion = champions.Data[playerInfo.ChampionID]
 	}
 
 	if !p.InGame {
-		sendToDiscord(fmt.Sprintf("%v meni peliin hahmolla %v", p.Name, p.Champion))
+		sendToDiscord(fmt.Sprintf("%v meni peliin", p.Name))
+		imageToDiscord(p.Champion.Name)
 	}
 	p.InGame = true
-
-}
-
-func getActiveGames(id int) (map[string]interface{}, error) {
-	return getIDData(spectatorURL, id)
-}
-
-func getChampionData(id int) (map[string]interface{}, error) {
-	return getIDData(championURL, id)
-}
-
-func getIDData(url string, id int) (map[string]interface{}, error) {
-	reqS := fmt.Sprintf("%s%d%s", url, id, aPIKey)
-	fmt.Println("requesting: ", reqS)
-	resp, err := requestRIOT(reqS)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func readPlayerIDs() {
-	for i, p := range players {
-		id, err := getPlayerID(p.Name)
-		if err != nil {
-			panic(err)
-		}
-		players[i].ID = id
-	}
-	fmt.Println(players)
-	time.Sleep(time.Second * 10)
-}
-
-func getPlayerID(name string) (int, error) {
-	respMap, err := requestRIOT(summonerByNameURL + name + aPIKey)
-	if err != nil {
-		return -1, err
-	}
-	id, err := respMap["id"].(json.Number).Int64()
-	if err != nil {
-		return -1, err
-	}
-	fmt.Printf("%s : %d\n", name, id)
-	return int(id), nil
 }

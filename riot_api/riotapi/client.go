@@ -28,9 +28,30 @@ var apiHosts = map[string]string{
 
 // Client is the http client used for sending the requests
 type Client struct {
-	c      *http.Client
-	host   string
-	apiKey string
+	c         *http.Client
+	host      string
+	apiKey    string
+	Summoner  SummonerAPI
+	Spectator SpectatorAPI
+	Static    LoLStaticDataAPI
+}
+
+// New creates a new riot API client
+func New(apiKey, region string) (*Client, error) {
+	host, ok := apiHosts[region]
+	if !ok {
+		return nil, errors.New("invalid region")
+	}
+	c := &Client{
+		c:      &http.Client{Timeout: time.Second * 20},
+		host:   host,
+		apiKey: apiKey,
+	}
+
+	c.Summoner = SummonerAPI{c: c}
+	c.Spectator = SpectatorAPI{c: c}
+	c.Static = LoLStaticDataAPI{c: c}
+	return c, nil
 }
 
 // APIError wraps http error messages
@@ -41,19 +62,6 @@ type APIError struct {
 
 func (err APIError) Error() string {
 	return fmt.Sprintf("status: %d, msg: %s", err.StatusCode, err.Msg)
-}
-
-// New creates a new riot API client
-func New(apiKey, region string) (*Client, error) {
-	host, ok := apiHosts[region]
-	if !ok {
-		return nil, errors.New("invalid region")
-	}
-	return &Client{
-		c:      &http.Client{Timeout: time.Second * 20},
-		host:   host,
-		apiKey: apiKey,
-	}, nil
 }
 
 // Request sends a new request to the given api endpoint and unmarshalls the response to given data

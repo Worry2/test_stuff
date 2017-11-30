@@ -7,7 +7,8 @@ import (
 
 // LoLStaticDataAPI implements the Riot LoL Static Data API methods
 type LoLStaticDataAPI struct {
-	c *Client
+	c         *Client
+	champions *Champions
 }
 
 const staticDataAPIPath = "static-data"
@@ -65,10 +66,14 @@ func readChamps(fn string) (*ChampionsDTO, error) {
 
 // Champions retrieves champion list lol/static-data/v3/champions
 func (api LoLStaticDataAPI) Champions() (*Champions, error) {
+	if api.champions != nil {
+		return api.champions, nil
+	}
 	var cdto ChampionsDTO
 	err := api.c.Request(staticDataAPIPath, "champions", &cdto)
 	if err != nil {
 		return nil, err
 	}
-	return cdto.toChampions(), nil
+	api.champions = cdto.toChampions()
+	return api.champions, nil
 }
