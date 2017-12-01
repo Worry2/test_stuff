@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	apiKey = "RGAPI-abcf80c0-6f71-4a65-acf5-2f03e087dd07"
+	apiKey = "RGAPI-4e5b5478-e606-47ee-ac4d-b6easdfdasd"
 )
 
 var players = []*Player{
@@ -28,7 +28,7 @@ type Player struct {
 }
 
 func main() {
-	c, err := riotapi.New(apiKey, "eune")
+	c, err := riotapi.New(apiKey, "eune", 50, 20)
 	if err != nil {
 		log.Fatalf("unable to initialize riot api: %v", err)
 	}
@@ -65,7 +65,7 @@ func handleMonitorPlayer(c *riotapi.Client, p *Player) {
 	}
 
 	for _, playerInfo := range cgi.Participants {
-		champions, err := c.Static.Champions()
+		champions, err := c.StaticData.Champions()
 		if err != nil {
 			fmt.Println(err)
 			return
