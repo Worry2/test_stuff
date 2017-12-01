@@ -5,6 +5,7 @@ import (
 )
 
 func TestSummonerAPI_SummonerByName(t *testing.T) {
+	api := SummonerAPI{newClient(t)}
 	type args struct {
 		name string
 	}
@@ -29,7 +30,6 @@ func TestSummonerAPI_SummonerByName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := SummonerAPI{newClient(t)}
 			got, err := api.SummonerByName(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("SummonerAPI.SummonerByName() error = %v, wantErr %v", err, tt.wantErr)

@@ -7,7 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
+
+	"github.com/throttled/throttled"
+	"github.com/throttled/throttled/store/memstore"
 )
 
 // apiHosts is a map from regions to Riot hosts
@@ -28,29 +32,43 @@ var apiHosts = map[string]string{
 
 // Client is the http client used for sending the requests
 type Client struct {
-	c         *http.Client
-	host      string
-	apiKey    string
-	Summoner  SummonerAPI
-	Spectator SpectatorAPI
-	Static    LoLStaticDataAPI
+	Summoner   SummonerAPI
+	Spectator  SpectatorAPI
+	StaticData LoLStaticDataAPI
+	c          *http.Client
+	rl         *throttled.GCRARateLimiter
+	host       string
+	apiKey     string
 }
 
 // New creates a new riot API client
-func New(apiKey, region string) (*Client, error) {
+func New(apiKey, region string, requestsPerMinute, maxBurst int) (*Client, error) {
 	host, ok := apiHosts[region]
 	if !ok {
 		return nil, errors.New("invalid region")
 	}
+
+	store, err := memstore.New(-1)
+	if err != nil {
+		return nil, err
+	}
+	quota := throttled.RateQuota{MaxRate: throttled.PerMin(requestsPerMinute), MaxBurst: maxBurst}
+
+	rateLimiter, err := throttled.NewGCRARateLimiter(store, quota)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Client{
 		c:      &http.Client{Timeout: time.Second * 20},
+		rl:     rateLimiter,
 		host:   host,
 		apiKey: apiKey,
 	}
 
 	c.Summoner = SummonerAPI{c: c}
 	c.Spectator = SpectatorAPI{c: c}
-	c.Static = LoLStaticDataAPI{c: c}
+	c.StaticData = LoLStaticDataAPI{c: c}
 	return c, nil
 }
 
@@ -58,6 +76,7 @@ func New(apiKey, region string) (*Client, error) {
 type APIError struct {
 	StatusCode int
 	Msg        string
+	RetryAfter int
 }
 
 func (err APIError) Error() string {
@@ -69,14 +88,21 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 	q := url.Values{}
 	q.Add("api_key", c.apiKey)
 
+	limited, result, err := c.rl.RateLimit("application", 1)
+	if err != nil {
+		return nil
+	}
+	if limited {
+		fmt.Printf("Requests limited, sleeping for %v\n", result.RetryAfter)
+		time.Sleep(result.RetryAfter)
+	}
+
 	u := url.URL{
 		Host:     c.host,
 		Scheme:   "https",
 		Path:     fmt.Sprintf("lol/%s/v3/%s", api, apiMethod),
 		RawQuery: q.Encode(),
 	}
-
-	fmt.Println(u.String())
 
 	resp, err := c.c.Get(u.String())
 	if err != nil {
@@ -99,5 +125,20 @@ func handleErrorStatus(resp *http.Response) error {
 	if err != nil {
 		return errors.New("unable to read response body")
 	}
-	return APIError{StatusCode: resp.StatusCode, Msg: string(b)}
+	var rafter int
+	ras := resp.Header.Get("retry-after")
+	if ras != "" {
+		rafter, err = strconv.Atoi(ras)
+		if err != nil {
+			return fmt.Errorf("invalid data in retry-after -header: %v", err)
+		}
+	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		fmt.Println("Too many requests, sleeping")
+
+		if rafter > 0 && rafter < 20 {
+			time.Sleep(time.Second * time.Duration(rafter))
+		}
+	}
+	return APIError{StatusCode: resp.StatusCode, Msg: string(b), RetryAfter: rafter}
 }

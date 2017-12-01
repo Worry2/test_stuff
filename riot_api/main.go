@@ -30,7 +30,7 @@ type Player struct {
 func main() {
 	c, err := riotapi.New(apiKey, "eune")
 	if err != nil {
-		log.Fatal("unable to initialize riot api")
+		log.Fatalf("unable to initialize riot api: %v", err)
 	}
 
 	sendToDiscord("Iltaa kaikki, olen täällä taas!")
