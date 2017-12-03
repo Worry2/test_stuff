@@ -10,7 +10,7 @@ type SpectatorAPI struct {
 	c *Client
 }
 
-const spectatorAPIPath = "summoner"
+const spectatorAPIPath = "spectator"
 
 // CurrentGameInfo represents a game in progress
 type CurrentGameInfo struct {
@@ -46,7 +46,7 @@ type CurrentGameParticipant struct {
 	SummonerName             string
 	GameCustomizationObjects []GameCustomizationObject
 	Bot                      bool
-	perks                    Perks
+	Perks                    Perks
 	Spell1ID                 int
 	Spell2ID                 int
 	TeamID                   int
@@ -70,7 +70,7 @@ type Perks struct {
 // or nil, if there is no game
 func (api SpectatorAPI) ActiveGamesBySummoner(id int) (*CurrentGameInfo, error) {
 	var cgi CurrentGameInfo
-	if err := api.c.Request(summonerAPIPath, fmt.Sprintf("summoners/by-name/%d", id), &cgi); err != nil {
+	if err := api.c.Request(spectatorAPIPath, fmt.Sprintf("active-games/by-summoner/%d", id), &cgi); err != nil {
 		if apiErr, ok := err.(APIError); ok {
 			if apiErr.StatusCode == http.StatusNotFound {
 				return nil, nil

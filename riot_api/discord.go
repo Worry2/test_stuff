@@ -45,13 +45,19 @@ func printAndReadResponse(r *http.Response) string {
 	return string(s)
 }
 
-func imageToDiscord(s string) {
+func imageToDiscord(title, desc, champ string) {
+	c := strings.Replace(strings.ToLower(champ), " ", "", -1)
+	url := "http://ddragon.leagueoflegends.com/cdn/img/champion/tiles/" + c + "_0.jpg"
+	fmt.Println(url)
 	dm := discordgo.WebhookParams{
 		AvatarURL: avatarURL,
 		Embeds: []*discordgo.MessageEmbed{
 			{
-				Title: s,
-				Image: &discordgo.MessageEmbedImage{URL: "http://ddragon.leagueoflegends.com/cdn/img/champion/tiles/" + strings.ToLower(s) + "_0.jpg"},
+				Title:       title,
+				Description: desc,
+				Image: &discordgo.MessageEmbedImage{
+					URL: url,
+				},
 			},
 		},
 	}

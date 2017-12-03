@@ -69,8 +69,12 @@ func (api LoLStaticDataAPI) Champions() (*Champions, error) {
 	if api.champions != nil {
 		return api.champions, nil
 	}
-	var cdto ChampionsDTO
-	err := api.c.Request(staticDataAPIPath, "champions", &cdto)
+	// var cdto ChampionsDTO
+	// err := api.c.Request(staticDataAPIPath, "champions", &cdto)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	cdto, err := readChamps("riotapi/champions.json")
 	if err != nil {
 		return nil, err
 	}

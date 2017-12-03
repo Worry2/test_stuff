@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	apiKey = "RGAPI-4e5b5478-e606-47ee-ac4d-b6easdfdasd"
+	apiKey = "RGAPI-8b46dbb2-825e-47d3-8b42-6065baaf018f"
 )
 
 var players = []*Player{
@@ -21,19 +21,23 @@ var players = []*Player{
 
 // Player is a lol player
 type Player struct {
-	Name     string
-	ID       int
-	InGame   bool
-	Champion riotapi.Champion
+	Name          string
+	ID            int
+	CurrentGameID int
+	Champion      riotapi.Champion
 }
 
+var games map[int]*riotapi.CurrentGameInfo
+var reportedGames = make(map[int]bool)
+
 func main() {
+	games = make(map[int]*riotapi.CurrentGameInfo)
 	c, err := riotapi.New(apiKey, "eune", 50, 20)
 	if err != nil {
 		log.Fatalf("unable to initialize riot api: %v", err)
 	}
 
-	sendToDiscord("Iltaa kaikki, olen täällä taas!")
+	// sendToDiscord("Iltaa kaikki, olen täällä taas!")
 	monitorPlayers(c)
 }
 
@@ -42,6 +46,7 @@ func monitorPlayers(c *riotapi.Client) {
 		for _, p := range players {
 			handleMonitorPlayer(c, p)
 		}
+		reportGames(c, players)
 		time.Sleep(time.Second * 60)
 	}
 }
@@ -53,14 +58,57 @@ func handleMonitorPlayer(c *riotapi.Client, p *Player) {
 		return
 	}
 	if cgi == nil {
-		if p.InGame {
-			sendToDiscord(p.Name + " lopetti pelin")
+		if p.CurrentGameID > 0 {
+			endGame(games[p.CurrentGameID])
+			p.CurrentGameID = 0
 		}
-		p.InGame = false
 		return
 	}
 
-	if p.InGame {
+	if p.CurrentGameID > 0 {
+		return
+	}
+
+	for _, playerInfo := range cgi.Participants {
+		if playerInfo.SummonerID == p.ID {
+			champions, err := c.StaticData.Champions()
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			p.Champion = champions.Data[playerInfo.ChampionID]
+			fmt.Println(playerInfo.Perks)
+			break
+		}
+	}
+
+	// if !p.InGame {
+	// 	//imageToDiscord(p.Name, fmt.Sprintf("Pelaa hahmolla %s", p.Champion.Name), p.Champion.Name)
+	// 	fmt.Println(p.Name, fmt.Sprintf("Pelaa hahmolla %s", p.Champion.Name), p.Champion.Name)
+
+	// }
+	p.CurrentGameID = cgi.GameID
+	games[cgi.GameID] = cgi
+
+}
+
+func endGame(g *riotapi.CurrentGameInfo) {
+	if g == nil {
+		return
+	}
+	fmt.Println("Peli loppui")
+	delete(games, g.GameID)
+	delete(reportedGames, g.GameID)
+}
+
+func reportGames(c *riotapi.Client, xp []*Player) {
+	for _, game := range games {
+		reportGame(c, game)
+	}
+}
+
+func reportGame(c *riotapi.Client, cgi *riotapi.CurrentGameInfo) {
+	if reportedGames[cgi.GameID] {
 		return
 	}
 
@@ -70,12 +118,8 @@ func handleMonitorPlayer(c *riotapi.Client, p *Player) {
 			fmt.Println(err)
 			return
 		}
-		p.Champion = champions.Data[playerInfo.ChampionID]
+		champion := champions.Data[playerInfo.ChampionID]
+		fmt.Println(playerInfo.SummonerName, fmt.Sprintf("Pelaa hahmolla %s", champion.Name), champion.Name)
 	}
-
-	if !p.InGame {
-		sendToDiscord(fmt.Sprintf("%v meni peliin", p.Name))
-		imageToDiscord(p.Champion.Name)
-	}
-	p.InGame = true
+	reportedGames[cgi.GameID] = true
 }
