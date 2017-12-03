@@ -37,8 +37,25 @@ func sendToDiscord(s string) {
 func newEmbedMessage(title string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title: title,
-		Color: 161,
+		Color: 1872042,
 	}
+}
+
+func sendMessages(embeds []*discordgo.MessageEmbed) {
+	dm := discordgo.WebhookParams{
+		AvatarURL: avatarURL,
+		Embeds:    embeds,
+	}
+	b, err := json.Marshal(dm)
+	if err != nil {
+		panic(err)
+	}
+
+	resp, err := http.Post(discordHook, "application/json", bytes.NewReader(b))
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
 }
 
 func sendMessage(m *discordgo.MessageEmbed) {

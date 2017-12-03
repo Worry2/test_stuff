@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	apiKey = "RGAPI-8b46dbb2-825e-47d3-8b42-6065baaf018f"
+	apiKey = "RGAPI-5a8057a4-0dca-4762-a049-78f91bda7615"
 )
 
 var players = []*Player{
@@ -112,11 +112,15 @@ func reportGame(c *riotapi.Client, cgi *riotapi.CurrentGameInfo) {
 	ggTeam := findGoodGuysTeamID(cgi)
 	ggPlayers := getPlayersOfTeam(ggTeam, cgi)
 	ggReport := reportTeam(c, "Hyvikset", ggPlayers)
-	ggReport.Author = &discordgo.MessageEmbedAuthor{Name: "Peli alkoi"}
-	sendMessage(ggReport)
 	bgPlayers := getPlayersOfTeam(getOpposingTeam(ggTeam), cgi)
 	bgReport := reportTeam(c, "Pahikset", bgPlayers)
-	sendMessage(bgReport)
+
+	if ggTeam == teamRed {
+		ggReport.Color = 13125190
+	} else {
+		bgReport.Color = 13125190
+	}
+	sendMessages([]*discordgo.MessageEmbed{ggReport, bgReport})
 
 	reportedGames[cgi.GameID] = true
 }
