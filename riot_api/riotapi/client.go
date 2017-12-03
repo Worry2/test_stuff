@@ -104,6 +104,8 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 		RawQuery: q.Encode(),
 	}
 
+	fmt.Println(u.String())
+
 	resp, err := c.c.Get(u.String())
 	if err != nil {
 		return err

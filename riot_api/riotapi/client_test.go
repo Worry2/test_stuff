@@ -2,7 +2,7 @@ package riotapi
 
 import "testing"
 
-const aPIKey = "RGAPI-abcf80c0-6f71-4a65-acf5-2f03e087dd07"
+const aPIKey = "RGAPI-8b46dbb2-825e-47d3-8b42-6065baaf018f"
 
 func newClient(t *testing.T) *Client {
 	c, err := New(aPIKey, "eune", 50, 20)
