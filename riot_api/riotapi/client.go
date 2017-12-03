@@ -35,6 +35,7 @@ type Client struct {
 	Summoner   SummonerAPI
 	Spectator  SpectatorAPI
 	StaticData LoLStaticDataAPI
+	Match      MatchAPI
 	c          *http.Client
 	rl         *throttled.GCRARateLimiter
 	host       string
@@ -69,6 +70,8 @@ func New(apiKey, region string, requestsPerMinute, maxBurst int) (*Client, error
 	c.Summoner = SummonerAPI{c: c}
 	c.Spectator = SpectatorAPI{c: c}
 	c.StaticData = LoLStaticDataAPI{c: c}
+	c.Match = MatchAPI{c: c}
+
 	return c, nil
 }
 
@@ -103,8 +106,6 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 		Path:     fmt.Sprintf("lol/%s/v3/%s", api, apiMethod),
 		RawQuery: q.Encode(),
 	}
-
-	fmt.Println(u.String())
 
 	resp, err := c.c.Get(u.String())
 	if err != nil {

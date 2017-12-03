@@ -17,13 +17,35 @@ const (
 )
 
 func sendToDiscord(s string) {
-	fmt.Println("Lähetys: ", s)
-	fmt.Println(s)
 	dm := discordgo.WebhookParams{
 		Content:   fmt.Sprintf("%s", s),
 		AvatarURL: avatarURL,
 	}
 
+	b, err := json.Marshal(dm)
+	if err != nil {
+		panic(err)
+	}
+
+	resp, err := http.Post(discordHook, "application/json", bytes.NewReader(b))
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+}
+
+func newEmbedMessage(title string) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title: title,
+		Color: 161,
+	}
+}
+
+func sendMessage(m *discordgo.MessageEmbed) {
+	dm := discordgo.WebhookParams{
+		AvatarURL: avatarURL,
+		Embeds:    []*discordgo.MessageEmbed{m},
+	}
 	b, err := json.Marshal(dm)
 	if err != nil {
 		panic(err)
