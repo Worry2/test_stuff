@@ -34,7 +34,7 @@ type Bot struct {
 	RC      *riotapi.Client
 
 	ChannelID       string
-	FollowedPlayers []*Player
+	FollowedPlayers map[int]Player
 }
 
 func newBot(botToken, riotKey string) (*Bot, error) {
@@ -46,7 +46,7 @@ func newBot(botToken, riotKey string) (*Bot, error) {
 	if err != nil {
 		log.Fatalf("unable to initialize riot api: %v", err)
 	}
-	bot := Bot{Discord: dg, RC: c}
+	bot := Bot{Discord: dg, RC: c, FollowedPlayers: make(map[int]Player)}
 
 	bot.AddMessageHandler()
 
@@ -83,6 +83,7 @@ func (b *Bot) AddMessageHandler() {
 					Fields: []*discordgo.MessageEmbedField{
 						{Name: "!follow", Value: "List of summoner names to be followed"},
 						{Name: "!list", Value: "List of summoners that are being followed"},
+						{Name: "!remove", Value: "List of summoner names that should not be followed"},
 						{Name: "ping", Value: "pong"},
 						{Name: "pong", Value: "ping"},
 					}},
@@ -117,12 +118,32 @@ func (b *Bot) AddMessageHandler() {
 					fmt.Println(err)
 				}
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Following %s (%s)", summoner.Name, rank))
-				b.FollowedPlayers = append(b.FollowedPlayers, &Player{Name: summoner.Name, ID: summoner.ID, Rank: rank})
+				b.FollowedPlayers[summoner.ID] = Player{Name: summoner.Name, ID: summoner.ID, Rank: rank}
 				b.ChannelID = m.ChannelID
 			}
 		}
 
-		// Start following players
+		// Stop following players
+		if strings.HasPrefix(m.Content, "!remove") {
+			names := strings.Fields(m.Content)
+			if len(names) < 2 {
+				s.ChannelMessageSend(m.ChannelID, "Please give at least one summoner name")
+			}
+			var players []Player
+			for _, name := range names[1:] {
+				for _, p := range b.FollowedPlayers {
+					if strings.ToLower(p.Name) == strings.ToLower(name) {
+						players = append(players, p)
+					}
+				}
+			}
+			for _, p := range players {
+				delete(b.FollowedPlayers, p.ID)
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Stopped following %s (%s)", p.Name, p.Rank))
+			}
+		}
+
+		// list followed players
 		if m.Content == "!list" {
 			var mefs []*discordgo.MessageEmbedField
 			for _, p := range b.FollowedPlayers {
@@ -182,7 +203,7 @@ func (b *Bot) monitorPlayers() {
 	}
 }
 
-func handleMonitorPlayer(c *riotapi.Client, p *Player) {
+func handleMonitorPlayer(c *riotapi.Client, p Player) {
 	cgi, err := c.Spectator.ActiveGamesBySummoner(p.ID)
 	if err != nil {
 		fmt.Println(err)
