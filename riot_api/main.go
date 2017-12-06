@@ -15,17 +15,46 @@ import (
 	"github.com/tahkapaa/test_stuff/riot_api/riotapi"
 )
 
-const (
-	apiKey = "RGAPI-38af4a20-b979-455d-8c9b-499b4259acf1"
-)
-
 var (
-	Token string
+	Token   string
+	RiotKey string
 )
 
 func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
+	flag.StringVar(&RiotKey, "r", "", "Riot API key")
 	flag.Parse()
+}
+
+// Player is a lol player
+type Player struct {
+	Name          string
+	ID            int
+	CurrentGameID int
+	Rank          string
+}
+
+var games map[int]*riotapi.CurrentGameInfo
+var reportedGames = make(map[int]bool)
+
+func main() {
+	games = make(map[int]*riotapi.CurrentGameInfo)
+
+	bot, err := newBot(Token, RiotKey)
+	if err != nil {
+		fmt.Printf("Unable to create bot: %v\n", err)
+		os.Exit(1)
+	}
+	go bot.monitorPlayers()
+
+	// Wait here until CTRL-C or other term signal is received.
+	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
+	sc := make(chan os.Signal, 1)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	<-sc
+
+	// Cleanly close down the Discord session.
+	bot.Discord.Close()
 }
 
 // Bot is a discordBot
@@ -38,11 +67,11 @@ type Bot struct {
 }
 
 func newBot(botToken, riotKey string) (*Bot, error) {
-	dg, err := discordgo.New("Bot " + Token)
+	dg, err := discordgo.New("Bot " + botToken)
 	if err != nil {
 		return nil, err
 	}
-	c, err := riotapi.New(apiKey, "eune", 50, 20)
+	c, err := riotapi.New(riotKey, "eune", 50, 20)
 	if err != nil {
 		log.Fatalf("unable to initialize riot api: %v", err)
 	}
@@ -99,6 +128,10 @@ func (b *Bot) AddMessageHandler() {
 		// If the message is "pong" reply with "Ping!"
 		if m.Content == "pong" {
 			s.ChannelMessageSend(m.ChannelID, "Ping!")
+		}
+
+		if strings.Contains(strings.ToLower(m.Content), "kapteeni") || strings.Contains(strings.ToLower(m.Content), "kapu") {
+			s.ChannelMessageSend(m.ChannelID, "Yarrr!")
 		}
 
 		// Start following players
@@ -160,37 +193,6 @@ func (b *Bot) AddMessageHandler() {
 		}
 
 	})
-}
-
-// Player is a lol player
-type Player struct {
-	Name          string
-	ID            int
-	CurrentGameID int
-	Rank          string
-}
-
-var games map[int]*riotapi.CurrentGameInfo
-var reportedGames = make(map[int]bool)
-
-func main() {
-	games = make(map[int]*riotapi.CurrentGameInfo)
-
-	bot, err := newBot(Token, apiKey)
-	if err != nil {
-		fmt.Printf("Unable to create bot: %v\n", err)
-		os.Exit(1)
-	}
-	go bot.monitorPlayers()
-
-	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
-
-	// Cleanly close down the Discord session.
-	bot.Discord.Close()
 }
 
 func (b *Bot) monitorPlayers() {
