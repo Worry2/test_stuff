@@ -1,7 +1,11 @@
 package main
 
-import "testing"
-import "github.com/bwmarrin/discordgo"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/bwmarrin/discordgo"
+)
 
 func TestSend(t *testing.T) {
 
@@ -14,5 +18,24 @@ func TestSend(t *testing.T) {
 		Footer: &discordgo.MessageEmbedFooter{Text: "Cpt. Selviö", IconURL: avatarURL},
 	}
 
-	sendMessages([]*discordgo.MessageEmbed{&m, &m})
+	sendMessages([]*discordgo.MessageEmbed{&m})
+}
+
+func TestDiscord(t *testing.T) {
+	dg, err := discordgo.New("Bot Mzg3MzQwODQ3NjUxMjI1NjAw.DQdjMQ.ER4bcXCinp9wnhODkXsmPhDZV8I")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	st, err := dg.GuildChannels("386887549408247826")
+	if err != nil {
+		t.Fatal("err: ", err.Error())
+	}
+	fmt.Println(st[1])
+
+	msg, err := dg.ChannelMessageSend(st[1].ID, "Testi")
+	if err != nil {
+		t.Fatal("Send fail: ", err)
+	}
+	fmt.Println(msg)
 }
