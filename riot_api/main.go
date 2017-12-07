@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
@@ -38,6 +39,7 @@ var games map[int]*riotapi.CurrentGameInfo
 var reportedGames = make(map[int]bool)
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	games = make(map[int]*riotapi.CurrentGameInfo)
 
 	bot, err := newBot(Token, RiotKey)
@@ -98,6 +100,7 @@ func newBot(botToken, riotKey string) (*Bot, error) {
 func (b *Bot) AddMessageHandler() {
 	b.Discord.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 
+		timeStr := time.Now().Format(time.ANSIC)
 		// Ignore all messages created by the bot itself
 		// This isn't required in this specific example but it's a good practice.
 		if m.Author.ID == s.State.User.ID {
@@ -108,26 +111,27 @@ func (b *Bot) AddMessageHandler() {
 			msg := discordgo.MessageSend{
 				Embed: &discordgo.MessageEmbed{
 					Title: "Available commands",
-					Color: 13125190,
+					Color: green,
 					Fields: []*discordgo.MessageEmbedField{
-						{Name: "!follow", Value: "List of summoner names to be followed"},
-						{Name: "!list", Value: "List of summoners that are being followed"},
-						{Name: "!remove", Value: "List of summoner names that should not be followed"},
-						{Name: "ping", Value: "pong"},
-						{Name: "pong", Value: "ping"},
-					}},
+						{Name: "!follow", Value: "List o' summoner names t' be followed"},
+						{Name: "!list", Value: "List o' summoners that are bein' followed"},
+						{Name: "!remove", Value: "List o' summoner names that should nah be followed"},
+						{Name: "!joke", Value: "Wants t' hear a joke?"},
+					},
+					Footer: newFooter(m.Author.Username, timeStr),
+				},
 			}
 			s.ChannelMessageSendComplex(m.ChannelID, &msg)
 		}
 
 		// If the message is "ping" reply with "Pong!"
 		if m.Content == "ping" {
-			s.ChannelMessageSend(m.ChannelID, "Pong!")
+			s.ChannelMessageSend(m.ChannelID, "Yarrr!")
 		}
 
 		// If the message is "pong" reply with "Ping!"
 		if m.Content == "pong" {
-			s.ChannelMessageSend(m.ChannelID, "Ping!")
+			s.ChannelMessageSend(m.ChannelID, "Yarrr!")
 		}
 
 		if strings.Contains(strings.ToLower(m.Content), "kapteeni") || strings.Contains(strings.ToLower(m.Content), "kapu") {
@@ -136,23 +140,36 @@ func (b *Bot) AddMessageHandler() {
 
 		// Start following players
 		if strings.HasPrefix(m.Content, "!follow") {
+			st, err := s.ChannelMessageSendComplex(m.ChannelID, newWorkingMessage())
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 			names := strings.Fields(m.Content)
 			if len(names) < 2 {
-				s.ChannelMessageSend(m.ChannelID, "Please give at least one summoner name")
+				s.ChannelMessageSendComplex(m.ChannelID, newErrorMessage("Give at least one summoner name", m.Author.Username, timeStr))
 			}
+			var addedSummoners []*discordgo.MessageEmbedField
 			for _, name := range names[1:] {
 				summoner, err := b.RC.Summoner.SummonerByName(name)
 				if err != nil || summoner == nil {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Unable to find summoner: %v", name))
+					s.ChannelMessageSendComplex(m.ChannelID, newErrorMessage(fmt.Sprintf("Unable t' find summoner: %v", name), m.Author.Username, timeStr))
 					continue
 				}
 				rank, err := findPlayerRank(b.RC, summoner.ID)
 				if err != nil {
 					fmt.Println(err)
 				}
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Following %s (%s)", summoner.Name, rank))
+				addedSummoners = append(addedSummoners, &discordgo.MessageEmbedField{Name: summoner.Name, Value: rank})
 				b.FollowedPlayers[summoner.ID] = Player{Name: summoner.Name, ID: summoner.ID, Rank: rank}
 				b.ChannelID = m.ChannelID
+			}
+			if len(addedSummoners) > 0 {
+				s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+					Channel: m.ChannelID,
+					ID:      st.ID,
+					Embed:   newAddedSummonersMessage("Now followin'", m.Author.Username, timeStr, addedSummoners),
+				})
 			}
 		}
 
@@ -160,19 +177,27 @@ func (b *Bot) AddMessageHandler() {
 		if strings.HasPrefix(m.Content, "!remove") {
 			names := strings.Fields(m.Content)
 			if len(names) < 2 {
-				s.ChannelMessageSend(m.ChannelID, "Please give at least one summoner name")
+				s.ChannelMessageSendComplex(m.ChannelID, newErrorMessage("Give at least one summoner name", m.Author.Username, timeStr))
 			}
 			var players []Player
 			for _, name := range names[1:] {
 				for _, p := range b.FollowedPlayers {
 					if strings.ToLower(p.Name) == strings.ToLower(name) {
 						players = append(players, p)
+						break
 					}
+					s.ChannelMessageSendComplex(m.ChannelID, newErrorMessage(fmt.Sprintf("Unable t' find summoner: %v", name), m.Author.Username, timeStr))
 				}
 			}
+			var removedSummoners []*discordgo.MessageEmbedField
 			for _, p := range players {
 				delete(b.FollowedPlayers, p.ID)
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Stopped following %s (%s)", p.Name, p.Rank))
+				removedSummoners = append(removedSummoners, &discordgo.MessageEmbedField{Name: p.Name, Value: p.Rank})
+			}
+			if len(removedSummoners) > 0 {
+				s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+					Embed: newAddedSummonersMessage("Stopped followin'", m.Author.Username, timeStr, removedSummoners),
+				})
 			}
 		}
 
@@ -185,13 +210,16 @@ func (b *Bot) AddMessageHandler() {
 			msg := discordgo.MessageSend{
 				Embed: &discordgo.MessageEmbed{
 					Title:  "Followed summoners",
-					Color:  13125190,
+					Color:  green,
 					Fields: mefs,
 				},
 			}
 			s.ChannelMessageSendComplex(m.ChannelID, &msg)
 		}
 
+		if m.Content == "!joke" {
+			s.ChannelMessageSend(m.ChannelID, jokes[rand.Intn(len(jokes))])
+		}
 	})
 }
 
@@ -269,9 +297,9 @@ func (b *Bot) reportGame(cgi *riotapi.CurrentGameInfo) {
 	bgReport := reportTeam(b.RC, "Bad guys", bgPlayers)
 
 	if ggTeam == teamRed {
-		ggReport.Color = 13125190
+		ggReport.Color = red
 	} else {
-		bgReport.Color = 13125190
+		bgReport.Color = red
 	}
 
 	b.Discord.ChannelMessageSendComplex(b.ChannelID, &discordgo.MessageSend{Embed: ggReport})

@@ -16,6 +16,13 @@ const (
 	avatarURL   = "http://ddragon.leagueoflegends.com/cdn/img/champion/tiles/gangplank_0.jpg"
 )
 
+const (
+	red    = 16750480
+	blue   = 2926540
+	green  = 5308359
+	yellow = 16773522
+)
+
 func sendToDiscord(s string) {
 	dm := discordgo.WebhookParams{
 		Content:   fmt.Sprintf("%s", s),
@@ -34,11 +41,50 @@ func sendToDiscord(s string) {
 	defer resp.Body.Close()
 }
 
+func newWorkingMessage() *discordgo.MessageSend {
+	return &discordgo.MessageSend{
+		Embed: &discordgo.MessageEmbed{
+			Title: "Runnin' on some errands...",
+			Color: yellow,
+		},
+	}
+}
+
 func newEmbedMessage(title string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title: title,
-		Color: 1872042,
+		Color: blue,
 	}
+}
+
+func newSuccessMessage(title, requestor, msgTime string) *discordgo.MessageEmbed {
+	return newMessage(title, requestor, msgTime, green)
+}
+
+func newErrorMessage(title, requestor, msgTime string) *discordgo.MessageSend {
+	return &discordgo.MessageSend{
+		Embed: newMessage(title, requestor, msgTime, red),
+	}
+}
+
+func newMessage(title, requestor, msgTime string, color int) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title:  title,
+		Color:  color,
+		Footer: newFooter(requestor, msgTime),
+	}
+}
+
+func newFooter(requestor, msgTime string) *discordgo.MessageEmbedFooter {
+	return &discordgo.MessageEmbedFooter{
+		Text: fmt.Sprintf("Requested by: %s | %v", requestor, msgTime),
+	}
+}
+
+func newAddedSummonersMessage(title, requestor, msgTime string, fields []*discordgo.MessageEmbedField) *discordgo.MessageEmbed {
+	msgEmbed := newSuccessMessage(title, requestor, msgTime)
+	msgEmbed.Fields = fields
+	return msgEmbed
 }
 
 func sendMessages(embeds []*discordgo.MessageEmbed) {
