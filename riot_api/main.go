@@ -212,6 +212,7 @@ func (b *Bot) AddMessageHandler() {
 					Title:  "Followed summoners",
 					Color:  green,
 					Fields: mefs,
+					Footer: newFooter(m.Author.Username, timeStr),
 				},
 			}
 			s.ChannelMessageSendComplex(m.ChannelID, &msg)
