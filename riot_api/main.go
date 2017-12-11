@@ -293,9 +293,17 @@ func (b *Bot) reportGame(cgi *riotapi.CurrentGameInfo) {
 
 	ggTeam := b.findGoodGuysTeamID(cgi)
 	ggPlayers := getPlayersOfTeam(ggTeam, cgi)
-	ggReport := reportTeam(b.RC, "Good guys", ggPlayers)
+	ggReport, err := reportTeam(b.RC, "Good guys", ggPlayers)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	bgPlayers := getPlayersOfTeam(getOpposingTeam(ggTeam), cgi)
-	bgReport := reportTeam(b.RC, "Bad guys", bgPlayers)
+	bgReport, err := reportTeam(b.RC, "Bad guys", bgPlayers)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	if ggTeam == teamRed {
 		ggReport.Color = red
@@ -309,19 +317,18 @@ func (b *Bot) reportGame(cgi *riotapi.CurrentGameInfo) {
 	reportedGames[cgi.GameID] = true
 }
 
-func reportTeam(c *riotapi.Client, title string, cgi []riotapi.CurrentGameParticipant) *discordgo.MessageEmbed {
+func reportTeam(c *riotapi.Client, title string, cgi []riotapi.CurrentGameParticipant) (*discordgo.MessageEmbed, error) {
 	fields := make([]*discordgo.MessageEmbedField, 0)
 	for _, cgp := range cgi {
 		mef, err := npcMessageEmbedField(c, &cgp)
 		if err != nil {
-			fmt.Println(err)
-			return nil
+			return nil, err
 		}
 		fields = append(fields, mef)
 	}
 	em := newEmbedMessage(title)
 	em.Fields = fields
-	return em
+	return em, nil
 }
 
 func npcMessageEmbedField(c *riotapi.Client, cgp *riotapi.CurrentGameParticipant) (*discordgo.MessageEmbedField, error) {
@@ -336,7 +343,8 @@ func npcMessageEmbedField(c *riotapi.Client, cgp *riotapi.CurrentGameParticipant
 	return &discordgo.MessageEmbedField{
 		Name:   fmt.Sprintf("%s - %s", cgp.SummonerName, rank),
 		Value:  champions.Data[cgp.ChampionID].Name,
-		Inline: true}, nil
+		Inline: true,
+	}, nil
 }
 
 func findPlayerRank(c *riotapi.Client, summonerID int) (string, error) {
