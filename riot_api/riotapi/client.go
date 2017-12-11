@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/throttled/throttled"
@@ -37,6 +38,7 @@ type Client struct {
 	StaticData LoLStaticDataAPI
 	Match      MatchAPI
 	c          *http.Client
+	rlMutex    sync.Mutex
 	rl         *throttled.GCRARateLimiter
 	host       string
 	apiKey     string
@@ -91,13 +93,8 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 	q := url.Values{}
 	q.Add("api_key", c.apiKey)
 
-	limited, result, err := c.rl.RateLimit("application", 1)
-	if err != nil {
-		return nil
-	}
-	if limited {
-		fmt.Printf("Requests limited, sleeping for %v\n", result.RetryAfter)
-		time.Sleep(result.RetryAfter)
+	if err := c.rateLimit(); err != nil {
+		return err
 	}
 
 	u := url.URL{
@@ -119,6 +116,22 @@ func (c *Client) Request(api, apiMethod string, data interface{}) error {
 
 	if err := json.NewDecoder(resp.Body).Decode(data); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *Client) rateLimit() error {
+	c.rlMutex.Lock()
+
+	// Unlock the mutex only after waiting -> only one thread sleeping at once, others are waiting for the mutex
+	defer c.rlMutex.Unlock()
+	limited, result, err := c.rl.RateLimit("application", 1)
+	if err != nil {
+		return nil
+	}
+	if limited {
+		fmt.Printf("Requests limited, sleeping for %v\n", result.RetryAfter)
+		time.Sleep(result.RetryAfter)
 	}
 	return nil
 }
