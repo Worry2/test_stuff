@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -27,6 +26,12 @@ func init() {
 	flag.Parse()
 }
 
+// RC is the riotapi client
+var RC *riotapi.Client
+
+// DGBot is the discord bot
+var DGBot *Bot
+
 // Player is a lol player
 type Player struct {
 	Name          string
@@ -35,19 +40,21 @@ type Player struct {
 	Rank          string
 }
 
-var games map[int]*riotapi.CurrentGameInfo
-var reportedGames = make(map[int]bool)
-
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	games = make(map[int]*riotapi.CurrentGameInfo)
 
-	bot, err := newBot(Token, RiotKey)
+	c, err := riotapi.New(RiotKey, "eune", 50, 20)
+	if err != nil {
+		log.Fatalf("unable to initialize riot api: %v", err)
+	}
+	RC = c
+
+	bot, err := newBot(Token)
 	if err != nil {
 		fmt.Printf("Unable to create bot: %v\n", err)
 		os.Exit(1)
 	}
-	go bot.monitorPlayers()
+	DGBot = bot
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
@@ -57,40 +64,6 @@ func main() {
 
 	// Cleanly close down the Discord session.
 	bot.Discord.Close()
-}
-
-
-func handleMonitorPlayer(c *riotapi.Client, p Player) {
-	cgi, err := c.Spectator.ActiveGamesBySummoner(p.ID)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if cgi == nil {
-		if p.CurrentGameID > 0 {
-			endGame(games[p.CurrentGameID])
-			p.CurrentGameID = 0
-		}
-		return
-	}
-
-	if p.CurrentGameID > 0 {
-		return
-	}
-
-	p.CurrentGameID = cgi.GameID
-	games[cgi.GameID] = cgi
-
-}
-
-func endGame(g *riotapi.CurrentGameInfo) {
-	if g == nil {
-		return
-	}
-	fmt.Println("Peli loppui")
-	// sendMessage(newEmbedMessage("Peli loppui"))
-	delete(games, g.GameID)
-	delete(reportedGames, g.GameID)
 }
 
 const (
@@ -106,26 +79,26 @@ func getOpposingTeam(teamID int) int {
 	return teamBlue
 }
 
-func (b *Bot) reportGames() {
-	for _, game := range games {
-		b.reportGame(game)
+func (pm *PlayerMonitor) reportGames() {
+	for _, game := range pm.games {
+		pm.reportGame(game)
 	}
 }
 
-func (b *Bot) reportGame(cgi *riotapi.CurrentGameInfo) {
-	if reportedGames[cgi.GameID] {
+func (pm *PlayerMonitor) reportGame(cgi *riotapi.CurrentGameInfo) {
+	if pm.reportedGames[cgi.GameID] {
 		return
 	}
 
-	ggTeam := b.findGoodGuysTeamID(cgi)
+	ggTeam := pm.findGoodGuysTeamID(cgi)
 	ggPlayers := getPlayersOfTeam(ggTeam, cgi)
-	ggReport, err := reportTeam(b.RC, "Good guys", ggPlayers)
+	ggReport, err := reportTeam(RC, "Good guys", ggPlayers)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	bgPlayers := getPlayersOfTeam(getOpposingTeam(ggTeam), cgi)
-	bgReport, err := reportTeam(b.RC, "Bad guys", bgPlayers)
+	bgReport, err := reportTeam(RC, "Bad guys", bgPlayers)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -137,10 +110,28 @@ func (b *Bot) reportGame(cgi *riotapi.CurrentGameInfo) {
 		bgReport.Color = red
 	}
 
-	b.Discord.ChannelMessageSendComplex(b.ChannelID, &discordgo.MessageSend{Embed: ggReport})
-	b.Discord.ChannelMessageSendComplex(b.ChannelID, &discordgo.MessageSend{Embed: bgReport})
+	DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: ggReport})
+	DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: bgReport})
 
-	reportedGames[cgi.GameID] = true
+	pm.reportedGames[cgi.GameID] = true
+}
+
+func (pm *PlayerMonitor) findGoodGuysTeamID(cgi *riotapi.CurrentGameInfo) int {
+	for _, cgp := range cgi.Participants {
+		if !pm.isPlayerNPC(&cgp) {
+			return cgp.TeamID
+		}
+	}
+	return teamNone
+}
+
+func (pm *PlayerMonitor) isPlayerNPC(cgp *riotapi.CurrentGameParticipant) bool {
+	for _, p := range pm.FollowedPlayers {
+		if p.ID == cgp.SummonerID {
+			return false
+		}
+	}
+	return true
 }
 
 func reportTeam(c *riotapi.Client, title string, cgi []riotapi.CurrentGameParticipant) (*discordgo.MessageEmbed, error) {
@@ -211,22 +202,4 @@ func getPlayersOfTeam(teamID int, cgi *riotapi.CurrentGameInfo) []riotapi.Curren
 		}
 	}
 	return team
-}
-
-func (b *Bot) findGoodGuysTeamID(cgi *riotapi.CurrentGameInfo) int {
-	for _, cgp := range cgi.Participants {
-		if !b.isPlayerNPC(&cgp) {
-			return cgp.TeamID
-		}
-	}
-	return teamNone
-}
-
-func (b *Bot) isPlayerNPC(cgp *riotapi.CurrentGameParticipant) bool {
-	for _, p := range b.FollowedPlayers {
-		if p.ID == cgp.SummonerID {
-			return false
-		}
-	}
-	return true
 }
