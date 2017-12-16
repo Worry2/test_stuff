@@ -15,6 +15,8 @@ import (
 	"github.com/tahkapaa/test_stuff/riot_api/riotapi"
 )
 
+const runesURL = "http://ec2-54-171-95-164.eu-west-1.compute.amazonaws.com:3000/runesReforged/"
+
 var (
 	Token   string
 	RiotKey string
@@ -113,6 +115,15 @@ func (pm *PlayerMonitor) reportGame(cgi *riotapi.CurrentGameInfo) {
 	DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: ggReport})
 	DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: bgReport})
 
+	bgrunes := reportRunes(bgPlayers)
+	for _, msg := range bgrunes {
+		DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: msg})
+	}
+	ggrunes := reportRunes(ggPlayers)
+	for _, msg := range ggrunes {
+		DGBot.Discord.ChannelMessageSendComplex(pm.ChannelID, &discordgo.MessageSend{Embed: msg})
+	}
+
 	pm.reportedGames[cgi.GameID] = true
 }
 
@@ -134,10 +145,10 @@ func (pm *PlayerMonitor) isPlayerNPC(cgp *riotapi.CurrentGameParticipant) bool {
 	return true
 }
 
-func reportTeam(c *riotapi.Client, title string, cgi []riotapi.CurrentGameParticipant) (*discordgo.MessageEmbed, error) {
+func reportTeam(c *riotapi.Client, title string, cgp []riotapi.CurrentGameParticipant) (*discordgo.MessageEmbed, error) {
 	fields := make([]*discordgo.MessageEmbedField, 0)
-	for _, cgp := range cgi {
-		mef, err := npcMessageEmbedField(c, &cgp)
+	for _, gp := range cgp {
+		mef, err := npcMessageEmbedField(c, &gp)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +157,22 @@ func reportTeam(c *riotapi.Client, title string, cgi []riotapi.CurrentGamePartic
 	em := newEmbedMessage(title)
 	em.Fields = fields
 	return em, nil
+}
+
+func reportRunes(cgp []riotapi.CurrentGameParticipant) []*discordgo.MessageEmbed {
+	var mex []*discordgo.MessageEmbed
+	for _, gp := range cgp {
+		fmt.Println(gp.SummonerName, fmt.Sprintf("%s%s%d", runesURL, "perkStyle/", gp.Perks.PerkStyle))
+		msg := discordgo.MessageEmbed{
+			Author: &discordgo.MessageEmbedAuthor{
+				Name:    gp.SummonerName,
+				IconURL: fmt.Sprintf("%s%s%d.png", runesURL, "perkStyle/", gp.Perks.PerkStyle),
+			},
+			Title: gp.SummonerName,
+		}
+		mex = append(mex, &msg)
+	}
+	return mex
 }
 
 func npcMessageEmbedField(c *riotapi.Client, cgp *riotapi.CurrentGameParticipant) (*discordgo.MessageEmbedField, error) {

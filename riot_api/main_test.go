@@ -6,6 +6,8 @@ import (
 	"github.com/tahkapaa/test_stuff/riot_api/riotapi"
 )
 
+var apiKey = ""
+
 func TestFindPlayerRank(t *testing.T) {
 	c, err := riotapi.New(apiKey, "eune", 50, 20)
 	if err != nil {
