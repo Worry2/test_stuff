@@ -194,7 +194,7 @@ func (c *Channel) handleStartFollowing(summonerNames, sender, timeStr string, s 
 
 func (c *Channel) handleStopFollowing(channelID, summonerNames, sender, timeStr string) {
 	if c == nil {
-		DGBot.Discord.ChannelMessageSendComplex(channelID, newErrorMessage("No one is being followed", sender, timeStr))
+		DGBot.Discord.ChannelMessageSendComplex(channelID, newErrorMessage("No one be bein' followed", sender, timeStr))
 		return
 	}
 
@@ -208,7 +208,7 @@ func (c *Channel) handleStopFollowing(channelID, summonerNames, sender, timeStr 
 
 func (c *Channel) handleListFollowedPlayers(channelID, sender, timeStr string) {
 	if c == nil {
-		DGBot.Discord.ChannelMessageSendComplex(channelID, newErrorMessage("No one is being followed", sender, timeStr))
+		DGBot.Discord.ChannelMessageSendComplex(channelID, newErrorMessage("No one be bein' followed", sender, timeStr))
 		return
 	}
 
