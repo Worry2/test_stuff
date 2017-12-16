@@ -51,7 +51,7 @@ func main() {
 	}
 	RC = c
 
-	bot, err := newBot(Token)
+	bot, err := newBot(Token, New("channels"))
 	if err != nil {
 		fmt.Printf("Unable to create bot: %v\n", err)
 		os.Exit(1)

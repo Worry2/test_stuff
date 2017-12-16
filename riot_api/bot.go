@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 type Bot struct {
 	Discord  *discordgo.Session
 	Channels map[string]*Channel
+	db       DB
 }
 
 // Channel is a channel with followed players
@@ -26,11 +28,12 @@ type Channel struct {
 // PlayerMonitor monitors players
 type PlayerMonitor struct {
 	fpMutex         sync.Mutex
-	FollowedPlayers map[int]Player
+	FollowedPlayers map[string]Player
 	games           map[int]*riotapi.CurrentGameInfo
 	reportedGames   map[int]bool
 	messageChan     chan monitorMessage
 	ChannelID       string
+	db              DB
 }
 
 type monitorMessage struct {
@@ -49,12 +52,16 @@ const (
 	ListPlayers
 )
 
-func newBot(botToken string) (*Bot, error) {
+func newBot(botToken string, db DB) (*Bot, error) {
 	dg, err := discordgo.New("Bot " + botToken)
 	if err != nil {
 		return nil, err
 	}
-	bot := Bot{Discord: dg, Channels: make(map[string]*Channel)}
+	bot := Bot{
+		Discord:  dg,
+		Channels: make(map[string]*Channel),
+		db:       db,
+	}
 
 	bot.AddMessageHandler()
 
@@ -62,21 +69,37 @@ func newBot(botToken string) (*Bot, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bot.readChannelsFromDB()
 	return &bot, nil
 }
 
-func newChannel(ID string) *Channel {
+func (b *Bot) readChannelsFromDB() {
+	channels, err := b.db.Get()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize channels from db: %v", err))
+	}
+	for _, channel := range channels {
+		b.addChannel(channel.ID, channel.Summoners)
+	}
+}
+
+func (b *Bot) addChannel(ID string, players map[string]Player) {
+	if players == nil {
+		players = make(map[string]Player)
+	}
 	pm := PlayerMonitor{
-		FollowedPlayers: make(map[int]Player),
+		FollowedPlayers: players,
 		games:           make(map[int]*riotapi.CurrentGameInfo),
 		reportedGames:   make(map[int]bool),
 		messageChan:     make(chan monitorMessage, 1),
 		ChannelID:       ID,
+		db:              b.db,
 	}
 
 	go pm.monitorPlayers()
 
-	return &Channel{
+	b.Channels[ID] = &Channel{
 		ChannelID: ID,
 		monitor:   &pm,
 	}
@@ -116,7 +139,7 @@ func (b *Bot) AddMessageHandler() {
 		if strings.HasPrefix(m.Content, "?follow") {
 			_, ok := b.Channels[m.ChannelID]
 			if !ok {
-				b.Channels[m.ChannelID] = newChannel(m.ChannelID)
+				b.addChannel(m.ChannelID, nil)
 			}
 			b.Channels[m.ChannelID].handleStartFollowing(m.Content, m.Author.Username, timeStr, s)
 			return
@@ -248,7 +271,7 @@ func (pm *PlayerMonitor) removePlayer(summonerNames, sender, timeStr string) {
 	}
 	var removedSummoners []*discordgo.MessageEmbedField
 	for _, p := range players {
-		delete(pm.FollowedPlayers, p.ID)
+		delete(pm.FollowedPlayers, strconv.Itoa(p.ID))
 		removedSummoners = append(removedSummoners, &discordgo.MessageEmbedField{Name: p.Name, Value: p.Rank})
 	}
 	if len(removedSummoners) > 0 {
@@ -256,6 +279,7 @@ func (pm *PlayerMonitor) removePlayer(summonerNames, sender, timeStr string) {
 			Embed: newAddedSummonersMessage("Stopped followin'", sender, timeStr, removedSummoners),
 		})
 	}
+	pm.save()
 }
 
 func (pm *PlayerMonitor) listPlayers(sender, timeStr string) {
@@ -280,7 +304,8 @@ func (pm *PlayerMonitor) monitorPlayers() {
 		case msg := <-pm.messageChan:
 			switch msg.kind {
 			case AddPlayer:
-				pm.FollowedPlayers[msg.player.ID] = msg.player
+				pm.FollowedPlayers[strconv.Itoa(msg.player.ID)] = msg.player
+				pm.save()
 				fmt.Printf("Added player '%v' to channel '%v'\n", msg.player.Name, pm.ChannelID)
 			case RemovePlayer:
 				pm.removePlayer(msg.summonerNames, msg.sender, msg.timeStr)
@@ -330,4 +355,10 @@ func (pm *PlayerMonitor) endGame(g *riotapi.CurrentGameInfo) {
 	// sendMessage(newEmbedMessage("Peli loppui"))
 	delete(pm.games, g.GameID)
 	delete(pm.reportedGames, g.GameID)
+}
+
+func (pm *PlayerMonitor) save() {
+	if err := pm.db.Save(&ChannelData{ID: pm.ChannelID, Summoners: pm.FollowedPlayers}); err != nil {
+		fmt.Println("Unable to save channel data")
+	}
 }
