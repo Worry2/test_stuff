@@ -12,3 +12,10 @@ go get -u github.com/micro/protoc-gen-micro
 # make install
 
 # NOTES: mdns registry does not work well...
+# Install consul
+# download, unzip
+consul agent -dev
+# or docker run consul
+
+# MICRO_API_HANDLER=rpc MICRO_API_NAMESPACE=go.micro.srv micro api
+# curl -XPOST -H 'Content-Type: application/json' -d '{"name": "John"}' http://localhost:8080/example/call
