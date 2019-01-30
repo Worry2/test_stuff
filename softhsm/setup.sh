@@ -1,0 +1,1 @@
+export SOFTHSM2_CONF=$(pwd)/softhsm2.conf
