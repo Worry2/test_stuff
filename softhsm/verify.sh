@@ -1,0 +1,1 @@
+openssl dgst -sha256 -verify ./key.pub -signature sig.bin tbs.txt
